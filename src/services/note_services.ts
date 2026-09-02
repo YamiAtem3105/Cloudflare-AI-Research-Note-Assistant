@@ -1,229 +1,104 @@
-import {
-  createTextNote,
-  createFileNote,
-  getNote,
-  listNotes,
-  startProcessing,
-  saveAnalysis,
-  saveFailure,
-  resetNote,
-} from "../repositories/note.repository";
+import { insertTextNote,
+         insertFileNote
+ } from "../repositories/note_repo";
 
-import {
-  uploadFile,
-  getFile,
-  deleteFile,
-} from "./r2.service";
-
-import { analyzeText } from "./ai.service";
-
-import {
-  validateTitle,
-  validateContent,
-  validateFile,
-} from "../validators/note.validator";
-
-export async function createText(
+// Xử lý logic tạo note bằng text
+export async function createTextNote(
   db: D1Database,
   title: unknown,
   content: unknown,
 ) {
-  const titleError = validateTitle(title);
-  if (titleError) throw new Error(titleError);
+  if (typeof title !== "string" || title.trim() === "") {
+    throw new Error("Title is required.");
+  }
 
-  const contentError = validateContent(content);
-  if (contentError) throw new Error(contentError);
+  if (typeof content !== "string" || content.trim() === "") {
+    throw new Error("Content is required.");
+  }
+
+  if (content.length > 20_000) {
+    throw new Error("Content must not exceed 20,000 characters.");
+  }
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  await createTextNote(
+  await insertTextNote(
     db,
     id,
-    (title as string).trim(),
-    content as string,
+    title.trim(),
+    content,
     now,
   );
 
   return {
     id,
-    title: (title as string).trim(),
+    title: title.trim(),
     source_type: "text",
     status: "pending",
   };
 }
 
-export async function createFile(
+// Xử lý logic tạo note bằng file
+export async function createFileNote(
   db: D1Database,
-  bucket: R2Bucket,
+  r2: R2Bucket,
   title: unknown,
-  file: File | null,
+  file: unknown,
 ) {
-  const titleError = validateTitle(title);
-  if (titleError) throw new Error(titleError);
+  // Kiểm tra title
+  if (typeof title !== "string" || title.trim() === "") {
+    throw new Error("Title is required.");
+  }
 
-  const fileError = validateFile(file);
-  if (fileError) throw new Error(fileError);
+  // Kiểm tra file
+  if (!(file instanceof File)) {
+    throw new Error("File is required.");
+  }
 
-  if (!file) throw new Error("File is required.");
+  // Kiểm tra dung lượng file
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error("File must not exceed 2 MB.");
+  }
+
+   const fileName = file.name.toLowerCase();
+
+  if (
+    !fileName.endsWith(".txt") &&
+    !fileName.endsWith(".md")
+  ) {
+    throw new Error("Only .txt and .md files are supported.");
+  }
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-
-  const safeName = file.name.replace(
-    /[^a-zA-Z0-9._-]/g,
-    "_",
-  );
-
-  const objectKey = `notes/${id}/${safeName}`;
-
-  await uploadFile(bucket, objectKey, file);
+  const objectKey = `notes/${id}/${file.name}`;
+  const content = await file.text();
+  
+  await r2.put(objectKey, file);
 
   try {
-    await createFileNote(db, {
+    await insertFileNote(
+      db,
       id,
-      title: (title as string).trim(),
+      title.trim(),
+      content,
       objectKey,
-      name: file.name,
-      type: file.type || "text/plain",
-      size: file.size,
+      file.name,
+      file.type,
+      file.size,
       now,
-    });
+    );
   } catch (error) {
-    await deleteFile(bucket, objectKey);
+    await r2.delete(objectKey);
     throw error;
   }
 
   return {
     id,
-    title: (title as string).trim(),
+    title: title.trim(),
     source_type: "file",
+    original_name: file.name,
     status: "pending",
   };
-}
-
-export async function getNotes(
-  db: D1Database,
-) {
-  return listNotes(db);
-}
-
-export async function getNoteDetail(
-  db: D1Database,
-  id: string,
-) {
-  const note = await getNote(db, id);
-
-  if (!note) return null;
-
-  return {
-    ...note,
-    tags: note.tags_json
-      ? JSON.parse(note.tags_json)
-      : [],
-  };
-}
-
-export async function analyze(
-  db: D1Database,
-  bucket: R2Bucket,
-  ai: Ai,
-  id: string,
-) {
-  const note = await getNote(db, id);
-
-  if (!note) {
-    throw new Error("Note not found.");
-  }
-
-  const claimed = await startProcessing(db, id);
-
-  if (!claimed) {
-    throw new Error(
-      "Note is already being processed.",
-    );
-  }
-
-  try {
-    let content: string;
-
-    if (note.source_type === "text") {
-      if (!note.content) {
-        throw new Error("Note content is missing.");
-      }
-
-      content = note.content;
-    } else {
-      if (!note.object_key) {
-        throw new Error("File reference is missing.");
-      }
-
-      const object = await getFile(
-        bucket,
-        note.object_key,
-      );
-
-      if (!object) {
-        throw new Error(
-          "File is missing from R2.",
-        );
-      }
-
-      content = await object.text();
-    }
-
-    const result = await analyzeText(
-      ai,
-      content,
-    );
-
-    await saveAnalysis(
-      db,
-      id,
-      result,
-    );
-
-    return result;
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Analysis failed.";
-
-    await saveFailure(
-      db,
-      id,
-      message,
-    );
-
-    throw error;
-  }
-}
-
-export async function retry(
-  db: D1Database,
-  bucket: R2Bucket,
-  ai: Ai,
-  id: string,
-) {
-  const note = await getNote(db, id);
-
-  if (!note) {
-    throw new Error("Note not found.");
-  }
-
-  if (note.status !== "failed") {
-    throw new Error(
-      "Only failed notes can be retried.",
-    );
-  }
-
-  await resetNote(db, id);
-
-  return analyze(
-    db,
-    bucket,
-    ai,
-    id,
-  );
 }

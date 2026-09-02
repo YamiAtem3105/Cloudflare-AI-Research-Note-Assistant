@@ -1,71 +1,67 @@
-import {
-  analyze,
-  retry,
-} from "../services/note.service";
-
-export async function analyzeRoute(
-  _request: Request,
-  env: Env,
+export async function insertTextNote(
+  db: D1Database,
   id: string,
-) {
-  try {
-    const result = await analyze(
-      env.ai_research_notes_db,
-      env.ai_research_notes,
-      env.AI,
+  title: string,
+  content: string,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(`
+      INSERT INTO notes (
+        id,
+        title,
+        source_type,
+        content,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, 'text', ?, 'pending', ?, ?)
+    `)
+    .bind(
       id,
-    );
-
-    return Response.json({
-      status: "done",
-      ...result,
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Analysis failed.";
-
-    const status =
-      message === "Note not found."
-        ? 404
-        : message.includes("already being processed")
-          ? 409
-          : 500;
-
-    return Response.json(
-      { error: message },
-      { status },
-    );
-  }
+      title,
+      content,
+      now,
+      now,
+    )
+    .run();
 }
-
-export async function retryRoute(
-  _request: Request,
-  env: Env,
+export async function insertFileNote(
+  db: D1Database,
   id: string,
-) {
-  try {
-    const result = await retry(
-      env.ai_research_notes_db,
-      env.ai_research_notes,
-      env.AI,
+  title: string,
+  objectKey: string,
+  originalName: string,
+  contentType: string,
+  size: number,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(`
+      INSERT INTO notes (
+        id,
+        title,
+        source_type,
+        object_key,
+        original_name,
+        content_type,
+        size,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, 'file', ?, ?, ?, ?, 'pending', ?, ?)
+    `)
+    .bind(
       id,
-    );
-
-    return Response.json({
-      status: "done",
-      ...result,
-    });
-  } catch (error) {
-    return Response.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Retry failed.",
-      },
-      { status: 500 },
-    );
-  }
+      title,
+      objectKey,
+      originalName,
+      contentType,
+      size,
+      now,
+      now,
+    )
+    .run();
 }
