@@ -10,7 +10,23 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "ai_research_notes_db",
+			"database_name": "ai-research-notes-db",
+			"database_id": "7102c80d-28cd-4090-8118-dce4599adbbd"
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "ai-research-notes",
+			"binding": "ai_research_notes"
+		}
+	],
+	"ai": {
+  		"binding": "AI"
+	}
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
