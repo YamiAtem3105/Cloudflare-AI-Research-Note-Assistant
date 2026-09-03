@@ -11,7 +11,8 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
-import {createNote,} from "./routes/note_route";
+import { createNote } from "./routes/note_route";
+import { analyzeNote } from "./services/ai_services";
 
 export default {
   async fetch(
@@ -25,6 +26,30 @@ export default {
       url.pathname === "/notes"
     ) {
       return createNote(request, env);
+    }
+
+    // TEST AI
+    if (
+      request.method === "POST" &&
+      url.pathname === "/test-ai"
+    ) {
+      const body = await request.json() as {
+        content?: unknown;
+      };
+
+      if (typeof body.content !== "string") {
+        return Response.json(
+          { error: "Content is required." },
+          { status: 400 },
+        );
+      }
+
+      const result = await analyzeNote(
+        env.AI,
+        body.content,
+      );
+
+      return Response.json(result);
     }
 
     return Response.json(

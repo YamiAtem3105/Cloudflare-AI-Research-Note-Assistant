@@ -1,5 +1,5 @@
 import { insertTextNote,
-         insertFileNote
+         insertFileNote,
  } from "../repositories/note_repo";
 
 // Xử lý logic tạo note bằng text
@@ -98,6 +98,7 @@ export async function createFileNote(
     id,
     title: title.trim(),
     source_type: "file",
+    content: content,
     original_name: file.name,
     status: "pending",
   };

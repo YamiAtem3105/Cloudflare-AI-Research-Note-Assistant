@@ -31,6 +31,7 @@ export async function insertFileNote(
   db: D1Database,
   id: string,
   title: string,
+  content:string,
   objectKey: string,
   originalName: string,
   contentType: string,
@@ -43,6 +44,7 @@ export async function insertFileNote(
         id,
         title,
         source_type,
+        content,
         object_key,
         original_name,
         content_type,
@@ -51,11 +53,12 @@ export async function insertFileNote(
         created_at,
         updated_at
       )
-      VALUES (?, ?, 'file', ?, ?, ?, ?, 'pending', ?, ?)
+      VALUES (?, ?, 'file',?, ?, ?, ?, ?, 'pending', ?, ?)
     `)
     .bind(
       id,
       title,
+      content,
       objectKey,
       originalName,
       contentType,
