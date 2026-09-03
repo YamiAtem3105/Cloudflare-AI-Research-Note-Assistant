@@ -57,11 +57,13 @@ ${content}
   // Lấy phần text mà AI trả về.
   const text = response.choices[0]?.message?.content;
 
+  console.log("AI RAW RESPONSE:", text);
+
   if (typeof text !== "string") {
     throw new Error("Invalid AI response.");
   }
 
-  // Chuyển JSON string mà AI trả về thành object.
+  // Chuyển JSON  AI trả về thành object.
   let result: unknown;
 
   try {

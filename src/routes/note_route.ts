@@ -1,6 +1,8 @@
 import { 
   createTextNote, 
   createFileNote, 
+  getNotes,
+  get_1_Note,
 } from "../services/note_services"; 
  
 export async function createNote( 
@@ -20,6 +22,7 @@ export async function createNote(
  
       const result = await createTextNote( 
         env.ai_research_notes_db, 
+        env.AI,
         body.title, 
         body.content, 
       ); 
@@ -41,6 +44,7 @@ export async function createNote(
       const result = await createFileNote( 
         env.ai_research_notes_db, 
         env.ai_research_notes, 
+        env.AI,
         body.title, 
         body.file, 
       ); 
@@ -67,4 +71,33 @@ export async function createNote(
       { status: 500 },
     );
   }
+}
+
+export async function getNoteList(
+  env: Env,
+): Promise<Response> {
+  const notes = await getNotes(
+    env.ai_research_notes_db,
+  );
+
+  return Response.json(notes);
+}
+
+export async function getNoteDetail(
+  env: Env,
+  id: string,
+): Promise<Response> {
+  const note = await get_1_Note(
+    env.ai_research_notes_db,
+    id,
+  );
+
+  if (!note) {
+    return Response.json(
+      { error: "Note not found." },
+      { status: 404 },
+    );
+  }
+
+  return Response.json(note);
 }

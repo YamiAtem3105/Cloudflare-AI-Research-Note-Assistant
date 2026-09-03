@@ -11,8 +11,11 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
-import { createNote } from "./routes/note_route";
-import { analyzeNote } from "./services/ai_services";
+import {
+  createNote,
+  getNoteList,
+  getNoteDetail,
+} from "./routes/note_route";
 
 export default {
   async fetch(
@@ -21,6 +24,7 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
+    // Tạo note mới
     if (
       request.method === "POST" &&
       url.pathname === "/notes"
@@ -28,29 +32,31 @@ export default {
       return createNote(request, env);
     }
 
-    // TEST AI
+    // Lấy danh sách note
     if (
-      request.method === "POST" &&
-      url.pathname === "/test-ai"
+      request.method === "GET" &&
+      url.pathname === "/notes"
     ) {
-      const body = await request.json() as {
-        content?: unknown;
-      };
+      return getNoteList(env);
+    }
 
-      if (typeof body.content !== "string") {
+    // Lấy thông tin một note theo ID
+    if (
+      request.method === "GET" &&
+      url.pathname.startsWith("/notes/")
+    ) {
+      const id = url.pathname.split("/")[2];
+
+      if (!id) {
         return Response.json(
-          { error: "Content is required." },
+          { error: "Note ID is required." },
           { status: 400 },
         );
       }
 
-      const result = await analyzeNote(
-        env.AI,
-        body.content,
-      );
-
-      return Response.json(result);
+      return getNoteDetail(env, id);
     }
+    
 
     return Response.json(
       { error: "Not Found." },
@@ -58,3 +64,4 @@ export default {
     );
   },
 } satisfies ExportedHandler<Env>;
+
