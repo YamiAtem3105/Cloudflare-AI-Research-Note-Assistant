@@ -166,4 +166,5 @@ dist
 !.env.example
 .wrangler/
 
+wrangler.jsonc
 test.txt
