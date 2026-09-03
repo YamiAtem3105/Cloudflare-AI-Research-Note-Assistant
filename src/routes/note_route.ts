@@ -3,6 +3,7 @@ import {
   createFileNote, 
   getNotes,
   get_1_Note,
+  startProcessing,
 } from "../services/note_services"; 
  
 export async function createNote( 
@@ -98,6 +99,8 @@ export async function getNoteDetail(
       { status: 404 },
     );
   }
+  
 
   return Response.json(note);
 }
+

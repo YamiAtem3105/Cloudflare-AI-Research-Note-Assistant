@@ -57,7 +57,6 @@ ${content}
   // Lấy phần text mà AI trả về.
   const text = response.choices[0]?.message?.content;
 
-  console.log("AI RAW RESPONSE:", text);
 
   if (typeof text !== "string") {
     throw new Error("Invalid AI response.");

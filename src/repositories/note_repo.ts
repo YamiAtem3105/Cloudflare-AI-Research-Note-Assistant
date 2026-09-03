@@ -1,4 +1,6 @@
 // Lưu data text vào note
+import type { Note } from "../types/tag_types";
+
 export async function insertTextNote(
   db: D1Database,
   id: string,
@@ -127,7 +129,7 @@ export async function listNotes(
 export async function getNoteById(
   db: D1Database,
   id: string,
-) {
+): Promise<Note | null> {
   const result = await db
     .prepare(`
       SELECT
@@ -150,7 +152,30 @@ export async function getNoteById(
       WHERE id = ?
     `)
     .bind(id)
-    .first();
+    .first<Note>();
 
   return result;
+}
+
+// Cập nhật trạng thái pending -> processing
+export async function updateProcessing(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(`
+      UPDATE notes
+      SET
+        status = 'processing',
+        updated_at = ?
+      WHERE id = ?
+        AND status = 'pending'
+    `)
+    .bind(
+      new Date().toISOString(),
+      id,
+    )
+    .run();
+
+  return result.meta.changes === 1;
 }

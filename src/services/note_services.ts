@@ -1,9 +1,11 @@
+
 import {
   insertTextNote,
   insertFileNote,
   updateNoteAIResult,
   listNotes,
   getNoteById,
+  updateProcessing,
 } from "../repositories/note_repo";
 
 import { analyzeNote } from "./ai_services";
@@ -33,7 +35,7 @@ export async function createTextNote(
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  // 1. Lưu note vào D1 trước
+  // Lưu note vào D1
   await insertTextNote(
     db,
     id,
@@ -41,52 +43,13 @@ export async function createTextNote(
     content,
     now,
   );
-
-  try {
-    // 2. Gửi content cho AI phân tích
-    const aiResult = await analyzeNote(
-      ai,
-      content,
-    );
-
-    // 3. Lưu kết quả AI vào D1
-    await updateNoteAIResult(
-      db,
-      id,
-      aiResult.summary,
-      aiResult.category,
-      aiResult.tags,
-      "done",
-      new Date().toISOString(),
-    );
-
-    // 4. Trả kết quả cho user
-    return {
-      id,
-      title: title.trim(),
-      source_type: "text",
-      status: "done",
-      summary: aiResult.summary,
-      category: aiResult.category,
-      tags: aiResult.tags,
-    };
-  } catch (error) {
-    // AI xử lý thất bại → đánh dấu note failed
-    await db
-      .prepare(`
-        UPDATE notes
-        SET status = ?, updated_at = ?
-        WHERE id = ?
-      `)
-      .bind(
-        "failed",
-        new Date().toISOString(),
-        id,
-      )
-      .run();
-
-    throw error;
-  }
+  
+  // Xử lý note bằng AI
+  return processNote(
+    db,
+    ai,
+    id,
+);
 }
 
 
@@ -154,9 +117,69 @@ export async function createFileNote(
     await r2.delete(objectKey);
     throw error;
   }
+  // Xử lý note bằng AI
+  return processNote(
+    db,
+    ai,
+    id,
+    r2,
+  );
+}
+
+// Bắt đầu xử lý note ở trạng thái pending
+export async function startProcessing(
+  db: D1Database,
+  id: string,
+): Promise<boolean> {
+  return updateProcessing(db, id);
+}
+
+// Hàm xử lý note chung của cả text và file
+export async function processNote(
+  db: D1Database,
+  ai: Ai,
+  id: string,
+  r2?: R2Bucket,
+) {
+  // Chuyển trạng thái pending -> processing
+  const started = await startProcessing(db, id);
+
+  if (!started) {
+    throw new Error("Note is already being processed.");
+  }
 
   try {
-    // Phân tích content bằng AI
+    // Lấy thông tin note
+    const note = await getNoteById(db, id);
+
+    if (!note) {
+      throw new Error("Note not found.");
+    }
+
+    let content: string;
+
+    // Lấy content tùy theo loại note
+    if (note.source_type === "text") {
+      content = note.content ?? "";
+    } else {
+      if (!r2) {
+        throw new Error("R2 bucket is required for file note.");
+      }
+
+      if (!note.object_key) {
+        throw new Error("File object key is missing.");
+      }
+
+      const object = await r2.get(note.object_key);
+
+      if (!object) {
+        throw new Error("File not found in storage.");
+      }
+
+      content = await object.text();
+    }
+
+    // Gửi content cho AI phân tích
     const aiResult = await analyzeNote(
       ai,
       content,
@@ -175,16 +198,15 @@ export async function createFileNote(
 
     return {
       id,
-      title: title.trim(),
-      source_type: "file",
-      original_name: file.name,
+      title: note.title,
+      source_type: note.source_type,
       status: "done",
       summary: aiResult.summary,
       category: aiResult.category,
       tags: aiResult.tags,
     };
   } catch (error) {
-    // AI thất bại → note vẫn tồn tại nhưng trạng thái là failed
+    // Xử lý thất bại → đánh dấu note failed
     await db
       .prepare(`
         UPDATE notes
@@ -202,6 +224,7 @@ export async function createFileNote(
   }
 }
 
+
 // Lấy thông tin trong notes để tạo list cho user
 export async function getNotes( db: D1Database,) {
 
@@ -216,3 +239,5 @@ export async function get_1_Note(
 ) {
   return getNoteById(db, id);
 }
+
+
