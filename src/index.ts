@@ -15,8 +15,10 @@ import {
   createNote,
   getNoteList,
   getNoteDetail,
+  retryNote,
 } from "./routes/note_route";
 
+// Kiểm tra request của user
 export default {
   async fetch(
     request: Request,
@@ -56,8 +58,24 @@ export default {
 
       return getNoteDetail(env, id);
     }
-    
 
+    // Chức năng chạy lại 
+    if (
+      request.method === "POST" &&
+      url.pathname.endsWith("/retry")
+    ) {
+      const id = url.pathname.split("/")[2];
+
+      if (!id) {
+        return Response.json(
+          { error: "Note ID is required." },
+          { status: 400 },
+        );
+      }
+
+      return retryNote(env, id);
+    }
+    
     return Response.json(
       { error: "Not Found." },
       { status: 404 },

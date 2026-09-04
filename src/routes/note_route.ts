@@ -3,8 +3,10 @@ import {
   createFileNote, 
   getNotes,
   get_1_Note,
-  startProcessing,
+  processNote,
 } from "../services/note_services"; 
+
+import { AppError } from "../error/app_error";
  
 export async function createNote( 
   request: Request, 
@@ -60,10 +62,11 @@ export async function createNote(
       { status: 400 }, 
     ); 
   } catch (error) {
-    if (error instanceof Error) {
+    console.error("CREATE NOTE ERROR:", error);
+    if (error instanceof AppError) {
       return Response.json(
         { error: error.message },
-        { status: 400 },
+        { status: error.status },
       );
     }
 
@@ -102,5 +105,35 @@ export async function getNoteDetail(
   
 
   return Response.json(note);
+}
+
+// Chức năng retry note có status failed
+export async function retryNote(
+  env: Env,
+  id: string,
+): Promise<Response> {
+  try {
+    const result = await processNote(
+      env.ai_research_notes_db,
+      env.AI,
+      id,
+      'failed',
+      env.ai_research_notes,
+    );
+
+    return Response.json(result);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return Response.json(
+        { error: error.message },
+        { status: 400 },
+      );
+    }
+
+    return Response.json(
+      { error: "Internal Server Error." },
+      { status: 500 },
+    );
+  }
 }
 

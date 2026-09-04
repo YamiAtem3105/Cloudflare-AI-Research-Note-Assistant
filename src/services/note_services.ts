@@ -6,9 +6,11 @@ import {
   listNotes,
   getNoteById,
   updateProcessing,
+  updateErrorMessage,
 } from "../repositories/note_repo";
 
-import { analyzeNote } from "./ai_services";
+import { AppError } from "../error/app_error";
+import { analyzeNote } from "../services/ai_services";
 
 // Xử lý logic tạo note bằng text
 export async function createTextNote(
@@ -19,7 +21,7 @@ export async function createTextNote(
 ) {
   // Kiểm tra title
   if (typeof title !== "string" || title.trim() === "") {
-    throw new Error("Title is required.");
+    throw new AppError("Title is required.", 400);
   }
 
   // Kiểm tra content
@@ -49,6 +51,7 @@ export async function createTextNote(
     db,
     ai,
     id,
+    'pending',
 );
 }
 
@@ -62,21 +65,23 @@ export async function createFileNote(
   file: unknown,
 ) {
   // Kiểm tra title
+  // Kiểm tra title
   if (typeof title !== "string" || title.trim() === "") {
-    throw new Error("Title is required.");
+    throw new AppError("Title is required.", 400);
   }
 
   // Kiểm tra file
   if (!(file instanceof File)) {
-    throw new Error("File is required.");
+    throw new AppError("File is required.", 400);
   }
 
   // Kiểm tra dung lượng file
   if (file.size > 2 * 1024 * 1024) {
-    throw new Error("File must not exceed 2 MB.");
+    throw new AppError("File must not exceed 2 MB.", 400);
   }
-  if (file.size === 0){
-    throw new Error("File must not be empty");
+
+  if (file.size === 0) {
+    throw new AppError("File must not be empty.", 400);
   }
 
   // Kiểm tra extension
@@ -86,7 +91,7 @@ export async function createFileNote(
     !fileName.endsWith(".txt") &&
     !fileName.endsWith(".md")
   ) {
-    throw new Error("Only .txt and .md files are supported.");
+    throw new AppError("Only .txt and .md files are supported.", 400);
   }
 
   const id = crypto.randomUUID();
@@ -99,63 +104,90 @@ export async function createFileNote(
   // Lưu file vào R2
   await r2.put(objectKey, file);
 
+try {
+  // Lưu metadata + content vào D1
+  await insertFileNote(
+    db,
+    id,
+    title.trim(),
+    content,
+    objectKey,
+    file.name,
+    file.type,
+    file.size,
+    now,
+  );
+} catch (error) {
+  // D1 thất bại → cố gắng xóa file đã upload vào R2
   try {
-    // Lưu metadata + content vào D1
-    await insertFileNote(
-      db,
-      id,
-      title.trim(),
-      content,
-      objectKey,
-      file.name,
-      file.type,
-      file.size,
-      now,
-    );
-  } catch (error) {
-    // D1 thất bại → xóa file đã upload vào R2
     await r2.delete(objectKey);
-    throw error;
+  } catch (cleanupError) {
+    // R2 cleanup cũng thất bại → ghi lại Worker Log
+    console.error({
+      type: "R2_CLEANUP_FAILED",
+      objectKey,
+      error:
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+    });
   }
+
+  // Giữ lại lỗi D1 ban đầu
+  throw error;
+}
   // Xử lý note bằng AI
   return processNote(
     db,
     ai,
     id,
+    "pending",
     r2,
   );
 }
 
-// Bắt đầu xử lý note ở trạng thái pending
+// Chuyển note sang trạng thái processing
 export async function startProcessing(
   db: D1Database,
   id: string,
+  currentStatus: "pending" | "failed" ,
 ): Promise<boolean> {
-  return updateProcessing(db, id);
+  return updateProcessing(db, id, currentStatus);
 }
+
 
 // Hàm xử lý note chung của cả text và file
 export async function processNote(
   db: D1Database,
   ai: Ai,
   id: string,
+  currentStatus: "pending" | "failed" ,
   r2?: R2Bucket,
 ) {
-  // Chuyển trạng thái pending -> processing
-  const started = await startProcessing(db, id);
 
-  if (!started) {
-    throw new Error("Note is already being processed.");
-  }
-
-  try {
-    // Lấy thông tin note
-    const note = await getNoteById(db, id);
+  // Lấy thông tin note
+  const note = await getNoteById(db, id);
 
     if (!note) {
-      throw new Error("Note not found.");
+      throw new AppError(
+        "Note not found.",
+         404,
+      );
+    }
+    
+  // Chuyển currentStatus -> processing
+  const started = await startProcessing(db, id, currentStatus);
+
+
+
+  if (!started) {
+    throw new AppError(
+      "Note is already being processed.",
+      409,
+      );
     }
 
+  try {
     let content: string;
 
     // Lấy content tùy theo loại note
@@ -173,7 +205,7 @@ export async function processNote(
       const object = await r2.get(note.object_key);
 
       if (!object) {
-        throw new Error("File not found in storage.");
+        throw new AppError("File not found in storage.", 404);
       }
 
       content = await object.text();
@@ -206,22 +238,27 @@ export async function processNote(
       tags: aiResult.tags,
     };
   } catch (error) {
-    // Xử lý thất bại → đánh dấu note failed
-    await db
-      .prepare(`
-        UPDATE notes
-        SET status = ?, updated_at = ?
-        WHERE id = ?
-      `)
-      .bind(
-        "failed",
-        new Date().toISOString(),
-        id,
-      )
-      .run();
+  const errorMessage =
+    error instanceof AppError
+      ? error.message
+      : "Note processing failed.";
 
-    throw error;
+  try {
+    await updateErrorMessage(
+      db,
+      id,
+      errorMessage,
+      new Date().toISOString(),
+    );
+  } catch (updateError) {
+    console.error({
+      type: "FAILED_STATUS_UPDATE_FAILED",
+      error: updateError,
+    });
   }
+
+  throw error;
+}
 }
 
 

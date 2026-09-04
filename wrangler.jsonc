@@ -7,6 +7,7 @@
 	"name": "damp-darkness-c6a5",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-08-25",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
 	},
@@ -15,7 +16,8 @@
 		{
 			"binding": "ai_research_notes_db",
 			"database_name": "ai-research-notes-db",
-			"database_id": "7102c80d-28cd-4090-8118-dce4599adbbd"
+			"database_id": "7102c80d-28cd-4090-8118-dce4599adbbd",
+			"migrations_dir": "migrations"
 		}
 	],
 	"r2_buckets": [

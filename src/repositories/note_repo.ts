@@ -157,25 +157,51 @@ export async function getNoteById(
   return result;
 }
 
-// Cập nhật trạng thái pending -> processing
+// Cập nhật current status -> processing
 export async function updateProcessing(
   db: D1Database,
   id: string,
+  currentStatus: "pending" | "failed",
 ): Promise<boolean> {
   const result = await db
     .prepare(`
       UPDATE notes
       SET
         status = 'processing',
+        error_message = NULL,
         updated_at = ?
       WHERE id = ?
-        AND status = 'pending'
+        AND status = ?
     `)
     .bind(
       new Date().toISOString(),
       id,
+      currentStatus,
     )
     .run();
 
   return result.meta.changes === 1;
+}
+
+export async function updateErrorMessage(
+  db: D1Database,
+  id: string,
+  errorMessage: string,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(`
+      UPDATE notes
+      SET
+        status = 'failed',
+        error_message = ?,
+        updated_at = ?
+      WHERE id = ?
+    `)
+    .bind(
+      errorMessage,
+      now,
+      id,
+    )
+    .run();
 }
