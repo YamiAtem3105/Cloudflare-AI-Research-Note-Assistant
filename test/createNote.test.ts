@@ -3,7 +3,10 @@ import { env, exports } from "cloudflare:workers";
 
 describe("POST /notes - create text note", () => {
   it("creates a text note and completes AI analysis", async () => {
-    // Arrange
+    // ============================================================
+    // CHUẨN BỊ - Mock kết quả trả về từ Workers AI
+    // ============================================================
+
     vi.spyOn(env.AI, "run").mockResolvedValue({
       choices: [
         {
@@ -18,7 +21,10 @@ describe("POST /notes - create text note", () => {
       ],
     } as any);
 
-    // Act
+    // ============================================================
+    // THỰC HIỆN - Gửi request tạo text note
+    // ============================================================
+
     const response = await exports.default.fetch(
       new Request("https://example.com/notes", {
         method: "POST",
@@ -32,7 +38,10 @@ describe("POST /notes - create text note", () => {
       }),
     );
 
-    // Assert - kiểm tra HTTP response
+    // ============================================================
+    // KIỂM TRA - Kiểm tra HTTP response
+    // ============================================================
+
     expect(response.status).toBe(201);
 
     const body = await response.json() as {
@@ -56,7 +65,10 @@ describe("POST /notes - create text note", () => {
       "Testing",
     ]);
 
-    // Assert - kiểm tra dữ liệu thực sự được lưu vào D1
+    // ============================================================
+    // KIỂM TRA - Kiểm tra dữ liệu thực sự được lưu vào D1
+    // ============================================================
+
     const note = await env.ai_research_notes_db
       .prepare(`
         SELECT
@@ -102,7 +114,12 @@ describe("POST /notes - create text note", () => {
   });
 });
 
+
 it("uploads a valid txt file and saves metadata correctly", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Mock kết quả từ Workers AI
+  // ============================================================
+
   vi.spyOn(env.AI, "run").mockResolvedValue({
     choices: [
       {
@@ -117,6 +134,10 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
     ],
   } as any);
 
+  // ============================================================
+  // CHUẨN BỊ - Tạo file TXT và FormData
+  // ============================================================
+
   const content = "This is uploaded text content.";
 
   const file = new File(
@@ -130,6 +151,10 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
   formData.append("title", "Uploaded Test Note");
   formData.append("file", file);
 
+  // ============================================================
+  // THỰC HIỆN - Gửi request upload file
+  // ============================================================
+
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
       method: "POST",
@@ -137,7 +162,10 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
     }),
   );
 
-  // HTTP response
+  // ============================================================
+  // KIỂM TRA - Kiểm tra HTTP response
+  // ============================================================
+
   expect(response.status).toBe(201);
 
   const body = await response.json() as {
@@ -161,7 +189,10 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
     "Testing",
   ]);
 
-  // Kiểm tra D1
+  // ============================================================
+  // KIỂM TRA - Kiểm tra metadata và kết quả AI trong D1
+  // ============================================================
+
   const note = await env.ai_research_notes_db
     .prepare(`
       SELECT
@@ -217,7 +248,10 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
     "Testing",
   ]);
 
-  // Kiểm tra R2
+  // ============================================================
+  // KIỂM TRA - Kiểm tra file gốc thực sự được lưu trong R2
+  // ============================================================
+
   const object = await env.ai_research_notes.get(
     note!.object_key,
   );
@@ -229,7 +263,12 @@ it("uploads a valid txt file and saves metadata correctly", async () => {
   expect(storedContent).toBe(content);
 });
 
+
 it("uploads a valid md file and saves metadata correctly", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Mock kết quả từ Workers AI
+  // ============================================================
+
   vi.spyOn(env.AI, "run").mockResolvedValue({
     choices: [
       {
@@ -244,6 +283,10 @@ it("uploads a valid md file and saves metadata correctly", async () => {
     ],
   } as any);
 
+  // ============================================================
+  // CHUẨN BỊ - Tạo file Markdown và FormData
+  // ============================================================
+
   const content = "# Test Note\n\nThis is markdown content.";
 
   const file = new File(
@@ -257,12 +300,20 @@ it("uploads a valid md file and saves metadata correctly", async () => {
   formData.append("title", "Markdown Test Note");
   formData.append("file", file);
 
+  // ============================================================
+  // THỰC HIỆN - Gửi request upload file
+  // ============================================================
+
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
       method: "POST",
       body: formData,
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Kiểm tra HTTP response
+  // ============================================================
 
   expect(response.status).toBe(201);
 
@@ -286,6 +337,10 @@ it("uploads a valid md file and saves metadata correctly", async () => {
     "Markdown",
     "Testing",
   ]);
+
+  // ============================================================
+  // KIỂM TRA - Kiểm tra metadata và kết quả AI trong D1
+  // ============================================================
 
   const note = await env.ai_research_notes_db
     .prepare(`
@@ -342,6 +397,10 @@ it("uploads a valid md file and saves metadata correctly", async () => {
     "Testing",
   ]);
 
+  // ============================================================
+  // KIỂM TRA - Kiểm tra file gốc thực sự được lưu trong R2
+  // ============================================================
+
   const object = await env.ai_research_notes.get(
     note!.object_key,
   );
@@ -355,6 +414,10 @@ it("uploads a valid md file and saves metadata correctly", async () => {
 
 
 it("rejects unsupported file type", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Tạo file PDF không được hỗ trợ
+  // ============================================================
+
   const file = new File(
     ["fake pdf content"],
     "test.pdf",
@@ -365,12 +428,20 @@ it("rejects unsupported file type", async () => {
   formData.append("title", "Invalid File");
   formData.append("file", file);
 
+  // ============================================================
+  // THỰC HIỆN - Gửi request upload file không hợp lệ
+  // ============================================================
+
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
       method: "POST",
       body: formData,
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Đảm bảo API từ chối file không được hỗ trợ
+  // ============================================================
 
   expect(response.status).toBe(400);
 
@@ -384,6 +455,10 @@ it("rejects unsupported file type", async () => {
 });
 
 it("rejects empty file", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Tạo file TXT rỗng
+  // ============================================================
+
   const file = new File(
     [],
     "empty.txt",
@@ -394,12 +469,20 @@ it("rejects empty file", async () => {
   formData.append("title", "Empty File");
   formData.append("file", file);
 
+  // ============================================================
+  // THỰC HIỆN - Gửi request upload file rỗng
+  // ============================================================
+
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
       method: "POST",
       body: formData,
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Đảm bảo API từ chối file rỗng
+  // ============================================================
 
   expect(response.status).toBe(400);
 
@@ -410,7 +493,12 @@ it("rejects empty file", async () => {
   expect(body.error).toBe("File must not be empty.");
 });
 
+
 it("rejects file larger than 2 MB", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Tạo file TXT có kích thước lớn hơn 2 MB
+  // ============================================================
+
   const content = "a".repeat(2 * 1024 * 1024 + 1);
 
   const file = new File(
@@ -423,12 +511,20 @@ it("rejects file larger than 2 MB", async () => {
   formData.append("title", "Large File");
   formData.append("file", file);
 
+  // ============================================================
+  // THỰC HIỆN - Gửi request upload file vượt quá giới hạn
+  // ============================================================
+
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
       method: "POST",
       body: formData,
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Đảm bảo API từ chối file vượt quá 2 MB
+  // ============================================================
 
   expect(response.status).toBe(400);
 
@@ -441,10 +537,19 @@ it("rejects file larger than 2 MB", async () => {
   );
 });
 
+
 it("rejects request without file", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Tạo request không có file
+  // ============================================================
+
   const formData = new FormData();
 
   formData.append("title", "Missing File");
+
+  // ============================================================
+  // THỰC HIỆN - Gửi request không có file
+  // ============================================================
 
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
@@ -452,6 +557,10 @@ it("rejects request without file", async () => {
       body: formData,
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Đảm bảo API yêu cầu phải có file
+  // ============================================================
 
   expect(response.status).toBe(400);
 
@@ -462,7 +571,12 @@ it("rejects request without file", async () => {
   expect(body.error).toBe("File is required.");
 });
 
+
 it("marks note as failed when AI output is malformed", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Mock Workers AI trả về dữ liệu JSON không hợp lệ
+  // ============================================================
+
   vi.spyOn(env.AI, "run").mockResolvedValue({
     choices: [
       {
@@ -472,6 +586,10 @@ it("marks note as failed when AI output is malformed", async () => {
       },
     ],
   } as any);
+
+  // ============================================================
+  // THỰC HIỆN - Gửi request tạo note để kích hoạt AI analysis
+  // ============================================================
 
   const response = await exports.default.fetch(
     new Request("https://example.com/notes", {
@@ -486,8 +604,10 @@ it("marks note as failed when AI output is malformed", async () => {
     }),
   );
 
-  // Tùy route hiện tại của mày:
-  // nếu createNote rethrow error → có thể là 500
+  // ============================================================
+  // KIỂM TRA - Kiểm tra API trả về lỗi khi AI output không hợp lệ
+  // ============================================================
+
   expect(response.status).toBe(500);
 
   const body = await response.json() as {
@@ -495,6 +615,10 @@ it("marks note as failed when AI output is malformed", async () => {
   };
 
   expect(body.error).toBeTruthy();
+
+  // ============================================================
+  // KIỂM TRA - Kiểm tra note chuyển sang failed và lưu lỗi vào D1
+  // ============================================================
 
   const note = await env.ai_research_notes_db
     .prepare(`
@@ -513,9 +637,14 @@ it("marks note as failed when AI output is malformed", async () => {
   expect(note?.error_message).toBeTruthy();
 });
 
+
 it("marks note as failed when AI call fails and succeeds after retry", async () => {
+  // ============================================================
+  // CHUẨN BỊ - Mock AI lần đầu thất bại, lần thứ hai thành công
+  // ============================================================
+
   vi.clearAllMocks();
-  
+
   const aiRun = vi
     .spyOn(env.AI, "run")
     .mockRejectedValueOnce(new Error("AI service unavailable"))
@@ -526,12 +655,16 @@ it("marks note as failed when AI call fails and succeeds after retry", async () 
             content: JSON.stringify({
               summary: "Retry succeeded.",
               category: "research",
-              tags: ["Retry", "AI",  "Cloudflare"],
+              tags: ["Retry", "AI", "Cloudflare"],
             }),
           },
         },
       ],
     } as any);
+
+  // ============================================================
+  // THỰC HIỆN - Tạo note và để AI xử lý lần đầu
+  // ============================================================
 
   const createResponse = await exports.default.fetch(
     new Request("https://example.com/notes", {
@@ -545,6 +678,10 @@ it("marks note as failed when AI call fails and succeeds after retry", async () 
       }),
     }),
   );
+
+  // ============================================================
+  // KIỂM TRA - Note phải chuyển sang failed khi AI thất bại
+  // ============================================================
 
   expect(createResponse.status).toBe(500);
 
@@ -565,6 +702,10 @@ it("marks note as failed when AI call fails and succeeds after retry", async () 
   expect(created?.status).toBe("failed");
   expect(created?.error_message).toBeTruthy();
 
+  // ============================================================
+  // THỰC HIỆN - Retry xử lý note đã failed
+  // ============================================================
+
   const retryResponse = await exports.default.fetch(
     new Request(
       `https://example.com/notes/${created!.id}/retry`,
@@ -576,9 +717,15 @@ it("marks note as failed when AI call fails and succeeds after retry", async () 
 
   const retryBody = await retryResponse.json();
 
-  console.log("RETRY RESPONSE:", retryBody);
+  // ============================================================
+  // KIỂM TRA - Retry phải thành công và trả về kết quả AI
+  // ============================================================
 
   expect(retryResponse.status).toBe(200);
+
+  // ============================================================
+  // KIỂM TRA - Kiểm tra kết quả cuối cùng được lưu vào D1
+  // ============================================================
 
   const finalNote = await env.ai_research_notes_db
     .prepare(`
@@ -597,11 +744,17 @@ it("marks note as failed when AI call fails and succeeds after retry", async () 
   expect(finalNote?.status).toBe("done");
   expect(finalNote?.summary).toBe("Retry succeeded.");
   expect(finalNote?.category).toBe("research");
+
   expect(JSON.parse(finalNote!.tags_json)).toEqual([
     "Retry",
     "AI",
-     "Cloudflare",
+    "Cloudflare",
   ]);
+
+  // ============================================================
+  // KIỂM TRA - Đảm bảo AI chỉ được gọi một lần cho mỗi lần xử lý
+  // ============================================================
 
   expect(aiRun).toHaveBeenCalledTimes(2);
 });
+

@@ -239,9 +239,9 @@ export async function processNote(
     };
   } catch (error) {
   const errorMessage =
-    error instanceof AppError
-      ? error.message
-      : "Note processing failed.";
+  error instanceof Error
+    ? error.message
+    : String(error);
 
   try {
     await updateErrorMessage(

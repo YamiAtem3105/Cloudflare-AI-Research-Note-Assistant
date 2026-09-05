@@ -18,6 +18,8 @@ import {
   retryNote,
 } from "./routes/note_route";
 
+import { renderUI } from "./ui";
+
 // Kiểm tra request của user
 export default {
   async fetch(
@@ -72,8 +74,19 @@ export default {
           { status: 400 },
         );
       }
-
+   
       return retryNote(env, id);
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/"
+    ) {
+      return new Response(renderUI(), {
+        headers: {
+          "Content-Type": "text/html; charset=UTF-8",
+        },
+      });
     }
     
     return Response.json(
